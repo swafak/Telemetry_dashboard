@@ -61,16 +61,11 @@ class _MyHomePageState extends State<MyHomePage> {
     final directory = await getApplicationDocumentsDirectory();
     final file = File('${directory.path}/mqtt_data.txt');
 
-    // Get the current timestamp
     final timestamp = DateTime.now();
 
-    // Create a stream controller
     final controller = StreamController<String>.broadcast();
 
-    // Open the file in append mode
     var sink = file.openWrite(mode: FileMode.append);
-
-    // Listen for data on the stream
     controller.stream.listen((String data) {
       sink.write('$timestamp: $data\n'); // Add timestamp to the data
     });
@@ -81,6 +76,26 @@ class _MyHomePageState extends State<MyHomePage> {
     await sink.flush();
     await sink.close();
   }
+  
+  //check for data validity
+  bool isValidData(String data) {
+    List<String> values = data.split(',');
+    if (values.length != 13) {
+      return false;
+    }
+    try {
+      for (String value in values) {
+        double.parse(value);
+      }
+    } catch (e) {
+      // If an error occurs during parsing, consider the data invalid
+      return false;
+    }
+    if (RegExp(r'[^\w.,-]').hasMatch(data)) {
+      return false;
+    }
+    return true;
+  }
 
 
   void _onMessage(List<MqttReceivedMessage> event) {
@@ -89,8 +104,12 @@ class _MyHomePageState extends State<MyHomePage> {
     writeToStream(payload);
     final trimmedData = payload.substring(1);
     final values = trimmedData.split(',');
-
     final timestamp = DateTime.now().millisecondsSinceEpoch.toDouble();
+    
+    // Skip processing invalid data
+    if (!isValidData(trimmedData)) {
+      return;
+    }
 
     setState(() {
       // Add data to respective lists
